@@ -1,0 +1,182 @@
+import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+# Lightweight probabilistic-trajectory model skeleton (~5k params by default)
+# Core equation (per-timestep, per-branch):
+#   S_c = sum_i alpha_i * (P_d + V_i_complex(t)) / (theta_d + Theta_i_complex(t) + eps)
+# No attention heads, layer stacking = 2-4, state dimensions 16-64, time-unroll depth variable.
+
+class ProbTrajectory5k(nn.Module):
+    def __init__(
+        self,
+        state_dim=32,        # latent state dim (16-64)
+        depth=200,           # unrolling depth (time stamps)
+        layers=3,            # number of residual layers (2-4 recommended)
+        target_params=5000,  # target parameter budget (informational only)
+        num_branches=16,     # branch count (tuned w/ state_dim to hit ~5k)
+        embed_dim=8,         # branch embedding dim
+        time_feat_dim=8,     # time embedding dim (sin/cos features)
+        hidden=32,           # hidden size for branch MLP
+        epsilon=0.5
+    ):
+        super().__init__()
+        assert 2 <= layers <= 4, "layers between 2 and 4"
+        assert 16 <= state_dim <= 64, "state_dim between 16 and 64"
+
+        self.state_dim = state_dim
+        self.depth = depth
+        self.layers = layers
+        self.epsilon = epsilon
+
+        # Learnable branch embeddings (small)
+        self.num_branches = num_branches
+        self.branch_embed = nn.Parameter(torch.randn(num_branches, embed_dim) * 0.1)
+
+        # Time feature projector (fixed Fourier features + small linear)
+        self.time_feat_dim = time_feat_dim
+        self.register_buffer("freqs", torch.exp(torch.linspace(math.log(1.0), math.log(10.0), time_feat_dim//2)))
+        self.time_proj = nn.Linear(time_feat_dim, time_feat_dim, bias=False)
+
+        # Shared small MLP: (embed + time_feat) -> hidden -> 4 * state_dim outputs per branch
+        # Outputs: V_real, V_imag, Theta_real, Theta_imag (each length = state_dim)
+        in_dim = embed_dim + time_feat_dim
+        self.mlp1 = nn.Linear(in_dim, hidden)
+        self.mlp2 = nn.Linear(hidden, 4 * state_dim)
+
+        # Read-in/read-out transforms between physical (3) and latent (state_dim)
+        self.P_map = nn.Linear(3, state_dim, bias=True)     # maps P_d -> latent numerator base
+        self.Theta_map = nn.Linear(3, state_dim, bias=True) # maps theta_d -> latent denom base
+        self.readout = nn.Linear(state_dim, 3, bias=True)  # latent -> 3D observable
+
+        # Learnable branch weights (softmaxed to form alphas)
+        self.branch_logits = nn.Parameter(torch.zeros(num_branches))
+
+        # Small residual stack (layers times apply core update)
+        self.res_layers = nn.ModuleList([
+            nn.Sequential(
+                nn.LayerNorm(state_dim),
+                nn.Linear(state_dim, state_dim),
+                nn.ReLU(),
+                nn.Linear(state_dim, state_dim)
+            ) for _ in range(layers)
+        ])
+
+        # parameter count print helper
+        self._print_param_count(target_params)
+
+    def _time_features(self, t):
+        # t: (..., ) scalar or vector of time stamps
+        # produce (..., time_feat_dim) features (sin/cos Fourier)
+        t = t.unsqueeze(-1) if t.ndim == 1 else t
+        freqs = self.freqs.unsqueeze(0).to(t.device)  # (1, F)
+        arg = t * freqs  # (T, F)
+        feats = torch.cat([torch.sin(arg), torch.cos(arg)], dim=-1)  # (T, 2F) == time_feat_dim
+        return self.time_proj(feats)  # small linear projection
+
+    def _mlp_branch(self, embed, t_feat):
+        # embed: (B, E), t_feat: (T, F) -> returns (B, T, 4*state_dim)
+        B, E = embed.shape
+        T = t_feat.shape[0]
+        # broadcast combine
+        x = torch.cat([embed.unsqueeze(1).expand(-1, T, -1), t_feat.unsqueeze(0).expand(B, -1, -1)], dim=-1)
+        x = F.relu(self.mlp1(x))
+        out = self.mlp2(x)  # (B, T, 4*state_dim)
+        return out
+
+    def forward(self, t, P_d, theta_d, update_rule="residual"):
+        """
+        t: 1D tensor of timestamps (T,)
+        P_d: tensor (3,) initial position
+        theta_d: tensor (3,) initial orientation
+        update_rule: "residual" or "overwrite" (consistency of applying layers)
+        Returns:
+          pos_super: (3, T) most probable path (real readout)
+          uncertainty: (T,) mean imag magnitude across latent dims
+        """
+        device = self.branch_embed.device
+        T = t.shape[0]
+
+        # Map physical initial conditions to latent base
+        P_lat = self.P_map(P_d.to(device))          # (state_dim,)
+        Theta_lat = self.Theta_map(theta_d.to(device))  # (state_dim,)
+
+        # Time features
+        t_feat = self._time_features(t.to(device))  # (T, time_feat_dim)
+
+        # Branch MLP outputs: (B, T, 4*state_dim)
+        branch_out = self._mlp_branch(self.branch_embed, t_feat)
+
+        # split outputs
+        B = self.num_branches
+        sd = self.state_dim
+        branch_out = branch_out.view(B, T, 4, sd)
+        V_real = branch_out[:, :, 0, :]   # (B, T, sd)
+        V_imag = branch_out[:, :, 1, :]
+        Theta_real = branch_out[:, :, 2, :]
+        Theta_imag = branch_out[:, :, 3, :]
+
+        # Branch weights (alphas)
+        alphas = F.softmax(self.branch_logits, dim=0)  # (B,)
+
+        # Complex division per branch/time/latent:
+        # (P + Vr + i Vi) / (Theta + Tr + i Ti + eps)
+        # compute denominator mag^2 once
+        denom_real = Theta_lat.unsqueeze(0).unsqueeze(1) + Theta_real  # (B,T,sd)
+        denom_imag = Theta_imag  # (B,T,sd)
+        denom_mag2 = denom_real**2 + denom_imag**2 + (self.epsilon**2)
+
+        num_real = P_lat.unsqueeze(0).unsqueeze(1) + V_real  # (B,T,sd)
+        num_imag = V_imag
+
+        # complex division
+        out_real = (num_real * denom_real + num_imag * denom_imag) / denom_mag2
+        out_imag = (num_imag * denom_real - num_real * denom_imag) / denom_mag2
+
+        # weight by alphas and sum over branches -> latent S_c (T, sd) complex (real/imag)
+        weighted_real = (alphas.view(B, 1, 1) * out_real).sum(dim=0)  # (T, sd)
+        weighted_imag = (alphas.view(B, 1, 1) * out_imag).sum(dim=0)  # (T, sd)
+
+        # Apply small residual stack per timestep (consistency / update rule)
+        latent_real = weighted_real  # (T, sd)
+        latent_imag = weighted_imag
+
+        for layer in self.res_layers:
+            if update_rule == "residual":
+                delta = layer(latent_real)  # using real path for residual; could be extended
+                latent_real = latent_real + delta
+            else:
+                latent_real = layer(latent_real)
+
+        # Readout: real part -> observable trajectory
+        pos_super = self.readout(latent_real)  # (T, 3)
+        # uncertainty: mean magnitude of imag across latent dims
+        uncertainty = latent_imag.abs().mean(dim=-1)  # (T,)
+
+        # return in same layout as original code: pos_super as (3, T)
+        return pos_super.transpose(0, 1), uncertainty
+
+    def _print_param_count(self, target):
+        total = sum(p.numel() for p in self.parameters())
+        print(f"[ProbTrajectory5k] params = {total} (target ~{target})")
+
+
+# Example instantiation & usage (Windows-friendly)
+if __name__ == "__main__":
+    import numpy as np
+    torch.manual_seed(42)
+
+    state_dim = 32    # choose 16/32/64
+    depth = 300       # unrolling depth
+    layers = 3        # 2-4
+    model = ProbTrajectory5k(state_dim=state_dim, depth=depth, layers=layers)
+
+    # timestamps
+    t = torch.linspace(0.0, 150.0, steps=depth)
+    P_d = torch.tensor([0.0, 0.0, 0.0])
+    theta_d = torch.tensor([0.0, 0.0, 0.0])
+
+    pos_super, uncertainty = model(t, P_d, theta_d)
+    print("pos_super shape:", pos_super.shape)       # (3, T)
+    print("uncertainty shape:", uncertainty.shape)   # (T,)
