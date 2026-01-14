@@ -1,0 +1,9 @@
+1-13-26
+
+-check CSV data "cleanliness",
+if not force split,
+add conditions for preprocessing.
+
+-intialize conditions, if adding
+optimizer make sure "optimizer", 
+and "model" don't conflict.
