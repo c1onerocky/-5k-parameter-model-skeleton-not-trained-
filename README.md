@@ -1,17 +1,30 @@
-# -5k-parameter-model-skeleton-not-trained-
+# 5k parameter model skeleton not trained
 
 ProbTrajectory5k
-A lightweight probabilistic trajectory model (~5k parameters) for exploring low-entropy motion paths through synthetic environments.
-This project provides a minimal neural skeleton capable of representing complex trajectory divergence using small-parameter, branch-based latent representations. Designed for research, experimentation, and forward exploration of trajectory synthesis.
-Features
-Ultra-lightweight: ~5k trainable parameters, suitable for low-resource machines and rapid iteration.
-Branching superposition: Multi-branch latent trajectories (num_branches) allow modeling divergence and uncertainty without large attention mechanisms.
+
+A lightweight probabilistic trajectory model (~5k parameters).  Low entropy motion paths through synthetic environments.
+
+Main:
+Minimal neural skeleton capable of representing complex trajectory divergence using low parameter, branch based latent representations. 
+Designed for research, experimentation, and forward exploration.
+
+Features:
+Ultra-lightweight: ~5k trainable parameters, suitable for low resource, rapid iteration.
+
+Branching superposition: Multi branch latent trajectories (num_branches) allow modeling divergence and uncertainty without large attention mechanisms.
+
 Low human bias: Focused on probabilistic motion rather than human language or task-specific outputs.
+
 Flexible latent state: state_dim tunable between 16–64 for experimentation.
+
 Residual consistency: 2–4 residual layers ensure stable propagation of latent states.
+
 Complexified latent representation: Real + imaginary components allow uncertainty tracking and low-entropy pathing.
+
 Time embeddings: Fourier features + linear projections encode continuous-time dynamics.
+
 Readout to 3D space: Converts latent trajectories into observable 3D positions.
+
 Installation (Windows + AMD GPU via ZLUDA)
 Install Python >=3.10
 Install PyTorch (CPU or CUDA via ZLUDA)
@@ -67,10 +80,14 @@ Hidden size for branch MLP
 epsilon
 Small scalar for complex division stability
 0.5
-Notes / Next Steps
-The model is a skeleton; no training yet. Forward pass demonstrates latent motion propagation.
+
+Notes / Next Steps:
+
+The model is a skeleton; not trained. Forward pass demonstrates latent motion propagation.
 Suitable for small synthetic datasets or experimental trajectory inputs.
+
 Designed to allow exploration of low-entropy trajectories without attention layers or human bias.
+
 Future work: training objectives, Monte Carlo evaluation, synthetic trajectory datasets, and integration with visualization pipelines.
 License
 CC0 / Public Domain — free to experiment, fork, and extend.
