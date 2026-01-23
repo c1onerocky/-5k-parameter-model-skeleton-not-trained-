@@ -1,33 +1,41 @@
-#Trajectory Synthesis Model utrained
-
-ProbTrajectory5k
-
+===================================
+Trajectory|Synthesis|Model|Utrained
+===================================
 A lightweight probabilistic trajectory model.  Tracks low entropy motion paths through synthetic environments.
 
-Main:
+==================================
+==============Main================
+==================================
+
 Minimal neural skeleton capable of representing complex trajectory divergence using, branch based latent representations. 
 Designed for research, experimentation, and forward exploration.
 
-Features:
-Ultra-lightweight: suitable for low resource, rapid iteration.
+====================================
+=============Features===============
+====================================
 
-Branching superposition: Multi branch latent trajectories allow modeling divergence and uncertainty without large attention mechanisms.
+---------Ultra-lightweight----------
+suitable for low resource, rapid iteration.
 
-Low human bias: 
-Focused on probabilistic motion rather than human language or task-specific outputs.
+------Branching superposition-------
+Multi branch latent trajectories allow modeling divergence and uncertainty without large attention mechanisms.
 
-Residual consistency:
+--------Low human bias-------------
+Focused on probabilistic motion rather than human language or task specific outputs.
+
+-------Residual consistency--------
 residual layers ensure stable propagation of latent states.
 
-Complexified latent representation: Real + imaginary components allow uncertainty tracking and low-entropy pathing.
+-Complexified latent representation-Real + imaginary components allow uncertainty tracking and low-entropy pathing.
 
-Time embeddings: 
+---------Time embeddings------------
 Fourier features + linear projections encode continuous-time dynamics.
 
-Readout to 3D space:
+--------Readout to 3D space---------
 Converts latent trajectories into observable 3D positions.
 
-Installation (Windows + AMD GPU via ZLUDA)
+----------Installation--------------
+(Windows + AMD GPU via ZLUDA)
 
 Install Python >=3.10
 
@@ -39,19 +47,17 @@ pip install torch torchvision
      (amd)
 Add ZLUDA DLLs to your system PATH
 
-Place prob_traj_5k.py in your 
+ 
+==================================
+============Notes=================
+==================================
+•The model is a skeleton, zero training. 
 
-# Example input
-t = torch.linspace(0.0, 150.0, steps=300)
-P_d = torch.tensor([0.0, 0.0, 0.0])
-theta_d = torch.tensor([0.0, 0.0, 0.0])
+•Forward pass demonstrates latent motion propagation.
 
-Notes:
+•Suitable for small synthetic datasets or experimental trajectory inputs.
 
-The model is a skeleton; not trained. Forward pass demonstrates latent motion propagation.
-Suitable for small synthetic datasets or experimental trajectory inputs.
-
-Designed to allow exploration of low-entropy trajectories without attention layers or human bias.
+•Designed to allow exploration of low-entropy trajectories without attention layers or human bias.
 
 
 CC0 / Public Domain — free to experiment, fork, and extend.
