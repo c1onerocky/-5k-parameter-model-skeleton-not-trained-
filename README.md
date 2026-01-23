@@ -1,40 +1,38 @@
-===================================
 Trajectory|Synthesis|Model|Utrained
-===================================
+
 A lightweight probabilistic trajectory model.  Tracks low entropy motion paths through synthetic environments.
 
-==================================
-==============Main================
-==================================
+
+Main
 
 Minimal neural skeleton capable of representing complex trajectory divergence using, branch based latent representations. 
 Designed for research, experimentation, and forward exploration.
 
-====================================
-=============Features===============
-====================================
 
----------Ultra-lightweight----------
+Features
+
+
+Ultra-lightweight
 suitable for low resource, rapid iteration.
 
-------Branching superposition-------
+Branching superposition
 Multi branch latent trajectories allow modeling divergence and uncertainty without large attention mechanisms.
 
---------Low human bias-------------
+Low human bias
 Focused on probabilistic motion rather than human language or task specific outputs.
 
--------Residual consistency--------
+Residual consistency
 residual layers ensure stable propagation of latent states.
 
--Complexified latent representation-Real + imaginary components allow uncertainty tracking and low-entropy pathing.
+Complexified latent representation Real + imaginary components allow uncertainty tracking and low-entropy pathing.
 
----------Time embeddings------------
+Time embeddings
 Fourier features + linear projections encode continuous-time dynamics.
 
---------Readout to 3D space---------
+Readout to 3D space
 Converts latent trajectories into observable 3D positions.
 
-----------Installation--------------
+Installation
 (Windows + AMD GPU via ZLUDA)
 
 Install Python >=3.10
@@ -48,9 +46,9 @@ pip install torch torchvision
 Add ZLUDA DLLs to your system PATH
 
  
-==================================
-============Notes=================
-==================================
+
+Notes
+
 •The model is a skeleton, zero training. 
 
 •Forward pass demonstrates latent motion propagation.
