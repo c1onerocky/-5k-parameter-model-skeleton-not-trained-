@@ -2,7 +2,7 @@ Post Divergence Trajectory Synthesis Model SKELETON
 
 ***this model is non fucntioning, just the core model skeleton***
 
-A lightweight probabilistic trajectory model.  Tracks low entropy motion paths through synthetic environments. This instance is used to replicate and recreated seeds based off intial conditions.  The output from the selected seed is the models base state.  based on the type of event which occurs when the seed was ran.  Gives insights into possible use case.  Secondary function: used as a calibration tool when changes cause catastrophic failure. (this instance is not tuned to solve trajectories, but a calibration tool to be used in conjunction with Anneal V1 and beyond.
+A lightweight probabilistic trajectory model.  Tracks low entropy motion paths through synthetic environments.
 
 
 Main:
